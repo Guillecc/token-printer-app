@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buscador de Tokens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1b1b1f;
+    --parchment:#f2ede1;
+    --parchment-dim:#e6ded0;
+    --crimson:#7a1f2b;
+    --crimson-dark:#5c1620;
+    --text:#2a2622;
+    --muted:#8b8578;
+    --line:#d8cfba;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--parchment);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky;
+    top:0;
+    z-index:10;
+    background:var(--ink);
+    padding:20px 16px 14px;
+    border-bottom:1px solid #33333a;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:1.5rem;
+    letter-spacing:-0.01em;
+    margin:0 0 12px;
+    color:var(--parchment);
+  }
+  form{
+    display:flex;
+    gap:8px;
+  }
+  input[type="text"]{
+    flex:1;
+    background:#2a2a30;
+    border:1px solid #45454d;
+    color:var(--parchment);
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:16px;
+    font-family:'Inter',sans-serif;
+  }
+  input[type="text"]:focus{
+    outline:none;
+    border-color:var(--crimson);
+  }
+  input[type="text"]::placeholder{color:#7c7c86;}
+  button.search-btn{
+    background:var(--crimson);
+    color:var(--parchment);
+    border:none;
+    border-radius:8px;
+    padding:12px 18px;
+    font-size:15px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+  }
+  button.search-btn:active{background:var(--crimson-dark);}
+
+  main{padding:16px;}
+  .status{
+    color:var(--muted);
+    font-size:14px;
+    padding:24px 4px;
+    text-align:center;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
+  }
+  .card{
+    background:var(--parchment);
+    border-radius:10px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    cursor:pointer;
+    border:1px solid var(--line);
+  }
+  .card img{
+    width:100%;
+    display:block;
+    aspect-ratio:5/7;
+    object-fit:cover;
+    background:var(--parchment-dim);
+  }
+  .card .meta{
+    padding:8px 10px 10px;
+  }
+  .card .meta .name{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:13px;
+    color:var(--text);
+    line-height:1.25;
+  }
+  .card .meta .set{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+  }
+
+  /* Visor */
+  .viewer{
+    position:fixed;
+    inset:0;
+    background:rgba(10,10,12,0.94);
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:100;
+  }
+  .viewer.open{display:flex;}
+  .viewer img{
+    max-width:min(88vw,420px);
+    max-height:60vh;
+    border-radius:14px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.5);
+  }
+  .viewer .vname{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    color:var(--parchment);
+    margin:16px 0 4px;
+    text-align:center;
+    font-size:1.1rem;
+  }
+  .viewer .vset{
+    color:var(--muted);
+    font-size:13px;
+    margin-bottom:20px;
+  }
+  .viewer .actions{
+    display:flex;
+    gap:10px;
+    width:100%;
+    max-width:420px;
+  }
+  .viewer .actions button{
+    flex:1;
+    padding:13px;
+    border-radius:8px;
+    border:none;
+    font-size:14px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+  }
+  .btn-print{background:var(--crimson);color:var(--parchment);}
+  .btn-close{
+    position:absolute;
+    top:18px;
+    right:18px;
+    background:none;
+    border:none;
+    color:var(--parchment);
+    font-size:26px;
+    line-height:1;
+    padding:6px 10px;
+  }
+
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Buscador de Tokens</h1>
+  <form id="search-form">
+    <input type="text" id="query" placeholder="Nombre del token, ej: Zombie, Soldier..." autocomplete="off">
+    <button type="submit" class="search-btn">Buscar</button>
+  </form>
+</header>
+
+<main>
+  <div id="status" class="status">Cargando información...</div>
+  <div id="grid" class="grid"></div>
+</main>
+
+<div class="viewer" id="viewer">
+  <button class="btn-close" id="close-viewer" aria-label="Cerrar">&times;</button>
+  <img id="viewer-img" src="" alt="">
+  <div class="vname" id="viewer-name"></div>
+  <div class="vset" id="viewer-set"></div>
+  <div class="actions">
+    <button class="btn-print" id="btn-print">Imprimir</button>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('search-form');
+const input = document.getElementById('query');
+const statusEl = document.getElementById('status');
+const grid = document.getElementById('grid');
+const viewer = document.getElementById('viewer');
+const viewerImg = document.getElementById('viewer-img');
+const viewerName = document.getElementById('viewer-name');
+const viewerSet = document.getElementById('viewer-set');
+
+let currentCard = null;
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  runSearch(q);
+});
+
+let debounceTimer = null;
+input.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const q = input.value.trim();
+  if (q.length < 3) return;
+  debounceTimer = setTimeout(() => runSearch(q), 450);
+});
+
+let searchSeq = 0;
+
+// Al abrir la app: consulta cuál es la edición de token/emblema más reciente
+// indexada en Scryfall. Sirve para saber de un vistazo si ya se sumó una
+// edición nueva al catálogo, sin tener que buscar nada.
+async function loadFreshness() {
+  const url = 'https://api.scryfall.com/cards/search?q=(type:token or type:emblem)&order=released&dir=desc&unique=prints';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Error de red');
+    const data = await res.json();
+    const newest = data.data && data.data[0];
+    const total = data.total_cards ? data.total_cards.toLocaleString('es-CL') : '';
+    if (newest) {
+      statusEl.innerHTML = `Busca un token de Magic para ver sus versiones.<br>` +
+        `<span style="opacity:0.7;">Catálogo: ${total} tokens/emblemas — última edición: ${newest.set_name} (${newest.released_at})</span>`;
+      return;
+    }
+  } catch (err) {
+    // si falla, no es grave: solo mostramos el mensaje por defecto
+  }
+  statusEl.textContent = 'Busca un token de Magic para ver sus versiones.';
+}
+loadFreshness();
+
+async function runSearch(q) {
+  const seq = ++searchSeq;
+  grid.innerHTML = '';
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Buscando...';
+
+  const query = `(type:token or type:emblem) ${q}`;
+  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=name`;
+
+  try {
+    const res = await fetch(url);
+    if (seq !== searchSeq) return; // llegó una búsqueda más nueva mientras esperábamos
+    if (res.status === 404) {
+      statusEl.textContent = `Sin resultados para "${q}".`;
+      return;
+    }
+    if (!res.ok) throw new Error('Error de red');
+    const data = await res.json();
+    if (seq !== searchSeq) return;
+    renderResults(data.data || []);
+  } catch (err) {
+    if (seq !== searchSeq) return;
+    statusEl.textContent = 'No se pudo conectar con Scryfall. Revisa tu conexión.';
+  }
+}
+
+function cardEntries(card) {
+  const faces = card.card_faces;
+
+  // Doble cara con imagen propia en cada lado (ej: Dinosaur // Treasure): una entrada por cara
+  if (faces && faces.length > 1 && faces.every(f => f.image_uris)) {
+    return faces.map(f => ({
+      name: f.name,
+      set_name: card.set_name,
+      released_at: card.released_at,
+      thumb: f.image_uris.small || f.image_uris.normal,
+      full: f.image_uris.normal || f.image_uris.large || f.image_uris.small,
+    }));
+  }
+
+  // Carta normal o de cara única
+  const images = card.image_uris || (faces && faces[0] && faces[0].image_uris) || {};
+  const full = images.normal || images.large || images.small;
+  if (!full) return [];
+  return [{
+    name: card.name,
+    set_name: card.set_name,
+    released_at: card.released_at,
+    thumb: images.small || full,
+    full,
+  }];
+}
+
+function renderResults(cards) {
+  const entries = cards.flatMap(cardEntries);
+
+  if (entries.length === 0) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Sin resultados.';
+    return;
+  }
+
+  statusEl.style.display = 'block';
+  statusEl.textContent = `${entries.length} versión${entries.length === 1 ? '' : 'es'} encontrada${entries.length === 1 ? '' : 's'} — toca una para imprimir`;
+  grid.innerHTML = '';
+
+  entries.forEach(entry => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <img src="${entry.thumb}" alt="${entry.name}" loading="lazy">
+      <div class="meta">
+        <div class="name">${entry.name}</div>
+        <div class="set">${entry.set_name}</div>
+      </div>
+    `;
+    el.addEventListener('click', () => openViewer(entry, entry.full));
+    grid.appendChild(el);
+  });
+}
+
+function openViewer(card, imgUrl) {
+  currentCard = card;
+  viewerImg.src = imgUrl;
+  viewerName.textContent = card.name;
+  viewerSet.textContent = card.set_name;
+  viewer.classList.add('open');
+}
+
+document.getElementById('close-viewer').addEventListener('click', () => {
+  viewer.classList.remove('open');
+});
+
+document.getElementById('btn-print').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-print');
+  const original = btn.textContent;
+  btn.textContent = 'Preparando...';
+  let dataUrl;
+  try {
+    dataUrl = await toThermalImage(viewerImg.src);
+  } catch (err) {
+    dataUrl = viewerImg.src; // si falla el procesado, imprime la imagen original
+  }
+  btn.textContent = original;
+
+  const shared = await shareToRawBT(dataUrl, currentCard.name);
+  if (!shared) {
+    // Respaldo: si el celular no soporta compartir archivos, usa el diálogo de impresión normal
+    openPrintWindow(dataUrl);
+  }
+});
+
+// Manda la imagen directo a la hoja de "Compartir" de Android para elegir RawBT.
+// Esto evita el diálogo de impresión estándar de Android, que fuerza tamaño
+// Carta/A4 e ignora el ancho de 58mm configurado en la app.
+async function shareToRawBT(dataUrl, name) {
+  if (!navigator.share) return false;
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const fileName = `${(name || 'token').replace(/[^a-z0-9]/gi, '_')}.png`;
+    const file = new File([blob], fileName, { type: 'image/png' });
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) return false;
+    await navigator.share({ files: [file], title: name || 'Token' });
+    return true;
+  } catch (err) {
+    // El usuario canceló el share sheet, o no está soportado: no es un error real
+    return true;
+  }
+}
+
+// Respaldo: abre una ventana en blanco con SOLO la imagen y usa el diálogo
+// de impresión del navegador (solo se usa si "Compartir archivos" no existe).
+function openPrintWindow(dataUrl) {
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('El navegador bloqueó la ventana de impresión. Revisa los permisos de ventanas emergentes para este sitio.');
+    return;
+  }
+  win.document.open();
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Imprimir token</title>
+<style>
+  @page { size: 58mm auto; margin: 0; }
+  html, body { margin:0; padding:0; }
+  img { width:48mm; display:block; }
+</style>
+</head>
+<body>
+  <img src="${dataUrl}">
+</body>
+</html>`);
+  win.document.close();
+
+  const img = win.document.querySelector('img');
+  const doPrint = () => {
+    win.focus();
+    win.print();
+  };
+  if (img.complete) {
+    doPrint();
+  } else {
+    img.onload = doPrint;
+  }
+  win.onafterprint = () => win.close();
+}
+
+// Convierte la imagen a blanco y negro con más contraste y la centra sobre
+// un lienzo blanco, pensada para que se vea nítida en una impresora térmica
+// de 58mm. Deja poco margen a los costados (para aprovechar el ancho) y más
+// margen abajo, para que quede espacio cómodo donde cortar.
+function toThermalImage(url) {
+  const DPMM = 8;             // densidad aprox. de una térmica de 203dpi
+  const TARGET_MM = 48;       // ancho total del lienzo = ancho máximo imprimible
+  const SIDE_MARGIN_MM = 0.5; // margen blanco mínimo a los costados
+  const TOP_MARGIN_MM = 1;    // margen blanco arriba
+  const BOTTOM_MARGIN_MM = 9; // margen blanco abajo, para poder cortar cómodo
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvasWidth = TARGET_MM * DPMM;
+      const sideMarginPx = SIDE_MARGIN_MM * DPMM;
+      const topMarginPx = TOP_MARGIN_MM * DPMM;
+      const bottomMarginPx = BOTTOM_MARGIN_MM * DPMM;
+      const contentWidth = canvasWidth - sideMarginPx * 2;
+      const scale = contentWidth / img.naturalWidth;
+      const contentHeight = img.naturalHeight * scale;
+      const canvasHeight = contentHeight + topMarginPx + bottomMarginPx;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      ctx.filter = 'grayscale(1) contrast(1.5) brightness(1.05)';
+      ctx.drawImage(img, sideMarginPx, topMarginPx, contentWidth, contentHeight);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+
+</script>
+
+</body>
+</html>
