@@ -237,6 +237,27 @@
     font-size:13px;
     margin:14px 0;
   }
+  .color-row{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+  }
+  .color-pip{
+    width:38px;
+    height:38px;
+    border-radius:50%;
+    border:2px solid #55555f;
+    background:#2a2a30;
+    color:var(--parchment);
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+  }
+  .color-pip.active{
+    background:var(--crimson);
+    border-color:var(--crimson);
+  }
 
 </style>
 </head>
@@ -277,6 +298,13 @@
         <input type="number" id="custom-power" placeholder="Fuerza" inputmode="numeric">
         <span>/</span>
         <input type="number" id="custom-toughness" placeholder="Resistencia" inputmode="numeric">
+      </div>
+      <div class="color-row" id="color-row">
+        <button type="button" class="color-pip" data-color="W">W</button>
+        <button type="button" class="color-pip" data-color="U">U</button>
+        <button type="button" class="color-pip" data-color="B">B</button>
+        <button type="button" class="color-pip" data-color="R">R</button>
+        <button type="button" class="color-pip" data-color="G">G</button>
       </div>
       <label class="upload-btn" id="custom-image-label" style="display:block;text-align:center;cursor:pointer;margin-top:0;">
         <span id="custom-image-label-text">Subir imagen (opcional)</span>
@@ -321,6 +349,25 @@ const customModal = document.getElementById('custom-modal');
 const customForm = document.getElementById('custom-form');
 const customImageInput = document.getElementById('custom-image');
 const customImageLabelText = document.getElementById('custom-image-label-text');
+const selectedColors = new Set();
+
+document.querySelectorAll('.color-pip').forEach(pip => {
+  pip.addEventListener('click', () => {
+    const c = pip.dataset.color;
+    if (selectedColors.has(c)) {
+      selectedColors.delete(c);
+      pip.classList.remove('active');
+    } else {
+      selectedColors.add(c);
+      pip.classList.add('active');
+    }
+  });
+});
+
+function resetColorPips() {
+  selectedColors.clear();
+  document.querySelectorAll('.color-pip').forEach(p => p.classList.remove('active'));
+}
 
 customImageInput.addEventListener('change', () => {
   const file = customImageInput.files && customImageInput.files[0];
@@ -337,6 +384,8 @@ customForm.addEventListener('submit', async (e) => {
   const power = document.getElementById('custom-power').value.trim();
   const toughness = document.getElementById('custom-toughness').value.trim();
   const imageFile = customImageInput.files && customImageInput.files[0];
+  const colors = Array.from(selectedColors);
+  const isEmblem = /emblem/i.test(type);
 
   let imageEl = null;
   if (imageFile) {
@@ -347,11 +396,12 @@ customForm.addEventListener('submit', async (e) => {
     }
   }
 
-  const dataUrl = drawCustomToken({ name, type, power, toughness, imageEl });
+  const dataUrl = drawCustomToken({ name, type, power, toughness, imageEl, isEmblem });
   customForm.reset();
   customImageLabelText.textContent = 'Subir imagen (opcional)';
+  resetColorPips();
   customModal.classList.remove('open');
-  openViewer({ name, set_name: 'Token personalizado' }, dataUrl);
+  openViewer({ name, set_name: 'Token personalizado', colors, isEmblem }, dataUrl);
 });
 
 function loadImageFromFile(file) {
@@ -364,7 +414,7 @@ function loadImageFromFile(file) {
   });
 }
 
-function drawCustomToken({ name, type, power, toughness, imageEl }) {
+function drawCustomToken({ name, type, power, toughness, imageEl, colors = [], isEmblem = false }) {
   const W = 500, H = 700;
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -387,11 +437,13 @@ function drawCustomToken({ name, type, power, toughness, imageEl }) {
   ctx.lineTo(W - 20, 82);
   ctx.stroke();
 
-  // Franja inferior: tipo (izquierda) + Poder/Resistencia (derecha)
+  // Franja inferior: tipo (arriba), identidad de color (abajo) + Poder/Resistencia o EMBLEM (derecha)
   const footerH = 90;
   const footerY = H - 20 - footerH;
-  const boxW = 110, boxH = 56;
   const hasPT = power !== '' || toughness !== '';
+  const boxW = isEmblem ? 150 : 110;
+  const boxH = 56;
+  const hasRightBox = isEmblem || hasPT;
 
   // Recuadro de arte: ocupa todo el espacio entre el nombre y la franja inferior
   const artX = 20, artY = 90, artW = W - 40, artH = footerY - artY;
@@ -425,19 +477,25 @@ function drawCustomToken({ name, type, power, toughness, imageEl }) {
   ctx.lineTo(W - 20, footerY);
   ctx.stroke();
 
-  // Tipo, a la izquierda de la franja inferior
-  const typeMaxWidth = hasPT ? W - 60 - boxW - 20 : W - 60;
-  fitText(ctx, type, 30, footerY + footerH / 2 + 8, typeMaxWidth, 24, s => `italic ${s}px Georgia, serif`);
+  // Tipo, centrado verticalmente en la franja inferior (el color/emblema/reminder
+  // ya no va dentro de la carta: se agrega al imprimir, igual que en los tokens buscados)
+  const leftMaxWidth = hasRightBox ? W - 60 - boxW - 20 : W - 60;
+  fitText(ctx, type, 30, footerY + footerH / 2 + 8, leftMaxWidth, 24, s => `italic ${s}px Georgia, serif`);
 
-  // Poder/Resistencia, a la derecha de la franja inferior (solo si se ingresó al menos uno)
-  if (hasPT) {
+  // Poder/Resistencia o EMBLEM, a la derecha de la franja inferior
+  if (hasRightBox) {
     const bx = W - 30 - boxW, by = footerY + (footerH - boxH) / 2;
     ctx.lineWidth = 4;
     ctx.strokeRect(bx, by, boxW, boxH);
-    ctx.font = 'bold 28px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${power || '0'}/${toughness || '0'}`, bx + boxW / 2, by + boxH / 2 + 2);
+    if (isEmblem) {
+      ctx.font = 'bold 22px Georgia, serif';
+      ctx.fillText('EMBLEM', bx + boxW / 2, by + boxH / 2 + 2);
+    } else {
+      ctx.font = 'bold 28px Georgia, serif';
+      ctx.fillText(`${power || '0'}/${toughness || '0'}`, bx + boxW / 2, by + boxH / 2 + 2);
+    }
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
@@ -463,7 +521,7 @@ let searchSeq = 0;
 // indexada en Scryfall. Sirve para saber de un vistazo si ya se sumó una
 // edición nueva al catálogo, sin tener que buscar nada.
 async function loadFreshness() {
-  const url = 'https://api.scryfall.com/cards/search?q=(type:token or type:emblem)&order=released&dir=desc&unique=prints';
+  const url = 'https://api.scryfall.com/cards/search?q=(type:token or type:emblem or type:card)&order=released&dir=desc&unique=prints';
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('Error de red');
@@ -488,11 +546,17 @@ async function runSearch(q) {
   statusEl.style.display = 'block';
   statusEl.textContent = 'Buscando...';
 
-  const query = `(type:token or type:emblem) ${q}`;
-  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=name`;
+  const baseQuery = `(type:token or type:emblem or type:card) ${q}`;
+  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(baseQuery)}&unique=prints&order=name`;
+  // Consulta aparte para saber cuáles de estos resultados están etiquetados como
+  // "reminder card" en Scryfall Tagger (otag:reminder-card). Si falla, seguimos sin ese dato.
+  const reminderUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(baseQuery + ' otag:reminder-card')}&unique=prints`;
 
   try {
-    const res = await fetch(url);
+    const [res, reminderRes] = await Promise.all([
+      fetch(url),
+      fetch(reminderUrl).catch(() => null),
+    ]);
     if (seq !== searchSeq) return; // llegó una búsqueda más nueva mientras esperábamos
     if (res.status === 404) {
       statusEl.textContent = `Sin resultados para "${q}".`;
@@ -500,23 +564,42 @@ async function runSearch(q) {
     }
     if (!res.ok) throw new Error('Error de red');
     const data = await res.json();
+
+    let reminderIds = new Set();
+    if (reminderRes && reminderRes.ok) {
+      const reminderData = await reminderRes.json();
+      reminderIds = new Set((reminderData.data || []).map(c => c.id));
+    }
+
     if (seq !== searchSeq) return;
-    renderResults(data.data || []);
+    renderResults(data.data || [], reminderIds);
   } catch (err) {
     if (seq !== searchSeq) return;
     statusEl.textContent = 'No se pudo conectar con Scryfall. Revisa tu conexión.';
   }
 }
 
-function cardEntries(card) {
+function cardEntries(card, reminderIds) {
   const faces = card.card_faces;
+  const colorIdentity = card.color_identity || [];
+  // Cartas de recordatorio (City's Blessing, The Monarch, etc.) no son criaturas
+  // ni tienen subtipo: Scryfall les da type_line = "Card" a secas. Esa señal es
+  // más confiable que el tag comunitario de Tagger, que no siempre está completo.
+  const isReminder = (card.type_line || '').trim().toLowerCase() === 'card'
+    || (reminderIds ? reminderIds.has(card.id) : false);
 
-  // Doble cara con imagen propia en cada lado (ej: Dinosaur // Treasure): una entrada por cara
+  // Doble cara con imagen propia en cada lado (ej: Dinosaur // Treasure,
+  // City's Blessing // Elemental): una entrada por cara, y cada cara evalúa
+  // su propio type_line/colores en vez de los combinados de toda la carta
+  // (si no, la cara de recordatorio hereda el color de la otra cara).
   if (faces && faces.length > 1 && faces.every(f => f.image_uris)) {
     return faces.map(f => ({
       name: f.name,
       set_name: card.set_name,
       released_at: card.released_at,
+      colors: f.colors !== undefined ? f.colors : colorIdentity,
+      isEmblem: /emblem/i.test(f.type_line || ''),
+      isReminder: (f.type_line || '').trim().toLowerCase() === 'card',
       thumb: f.image_uris.small || f.image_uris.normal,
       full: f.image_uris.normal || f.image_uris.large || f.image_uris.small,
     }));
@@ -530,13 +613,16 @@ function cardEntries(card) {
     name: card.name,
     set_name: card.set_name,
     released_at: card.released_at,
+    colors: colorIdentity,
+    isEmblem: /emblem/i.test(card.type_line || ''),
+    isReminder,
     thumb: images.small || full,
     full,
   }];
 }
 
-function renderResults(cards) {
-  const entries = cards.flatMap(cardEntries);
+function renderResults(cards, reminderIds) {
+  const entries = cards.flatMap(card => cardEntries(card, reminderIds));
 
   if (entries.length === 0) {
     statusEl.style.display = 'block';
@@ -581,7 +667,7 @@ document.getElementById('btn-print').addEventListener('click', async () => {
   btn.textContent = 'Preparando...';
   let dataUrl;
   try {
-    dataUrl = await toThermalImage(viewerImg.src);
+    dataUrl = await toThermalImage(viewerImg.src, currentCard.colors, currentCard.isEmblem, currentCard.isReminder);
   } catch (err) {
     dataUrl = viewerImg.src; // si falla el procesado, imprime la imagen original
   }
@@ -655,12 +741,23 @@ function openPrintWindow(dataUrl) {
 // un lienzo blanco, pensada para que se vea nítida en una impresora térmica
 // de 58mm. Deja poco margen a los costados (para aprovechar el ancho) y más
 // margen abajo, para que quede espacio cómodo donde cortar.
-function toThermalImage(url) {
+// Convierte una identidad de color (["W","U"], [], etc.) en un nombre legible,
+// siempre en orden W-U-B-R-G: "White Blue", "Blue", "Colorless"...
+function colorIdentityLabel(colors) {
+  const NAMES = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+  const order = ['W', 'U', 'B', 'R', 'G'];
+  const label = order.filter(c => colors.includes(c)).map(c => NAMES[c]).join(' ');
+  return label || 'Colorless';
+}
+
+function toThermalImage(url, colors, isEmblem, isReminder) {
   const DPMM = 8;             // densidad aprox. de una térmica de 203dpi
   const TARGET_MM = 48;       // ancho total del lienzo = ancho máximo imprimible
   const SIDE_MARGIN_MM = 0.5; // margen blanco mínimo a los costados
   const TOP_MARGIN_MM = 1;    // margen blanco arriba
-  const BOTTOM_MARGIN_MM = 9; // margen blanco abajo, para poder cortar cómodo
+  const BOTTOM_MARGIN_MM = 11; // margen blanco abajo, para poder cortar cómodo
+  const hasColorInfo = Array.isArray(colors);
+  const colorLinePx = hasColorInfo ? 30 : 0; // franja para el texto de color, aparte del margen de corte
 
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -673,7 +770,7 @@ function toThermalImage(url) {
       const contentWidth = canvasWidth - sideMarginPx * 2;
       const scale = contentWidth / img.naturalWidth;
       const contentHeight = img.naturalHeight * scale;
-      const canvasHeight = contentHeight + topMarginPx + bottomMarginPx;
+      const canvasHeight = contentHeight + topMarginPx + colorLinePx + bottomMarginPx;
 
       const canvas = document.createElement('canvas');
       canvas.width = canvasWidth;
@@ -685,6 +782,27 @@ function toThermalImage(url) {
 
       ctx.filter = 'grayscale(1) contrast(1.5) brightness(1.05)';
       ctx.drawImage(img, sideMarginPx, topMarginPx, contentWidth, contentHeight);
+      ctx.filter = 'none';
+
+      if (hasColorInfo) {
+        const lineY = topMarginPx + contentHeight;
+        // línea separadora fina, luego el nombre del color centrado
+        ctx.beginPath();
+        ctx.moveTo(sideMarginPx, lineY + 4);
+        ctx.lineTo(sideMarginPx + contentWidth, lineY + 4);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+
+        ctx.font = 'bold 15px Inter, sans-serif';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = isReminder ? 'Reminder Card' : (isEmblem ? 'Emblem' : colorIdentityLabel(colors));
+        ctx.fillText(label, sideMarginPx + contentWidth / 2, lineY + colorLinePx / 2 + 4);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+      }
 
       resolve(canvas.toDataURL('image/png'));
     };
