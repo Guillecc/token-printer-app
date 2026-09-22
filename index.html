@@ -521,7 +521,7 @@ let searchSeq = 0;
 // indexada en Scryfall. Sirve para saber de un vistazo si ya se sumó una
 // edición nueva al catálogo, sin tener que buscar nada.
 async function loadFreshness() {
-  const url = 'https://api.scryfall.com/cards/search?q=(type:token or type:emblem or type:card)&order=released&dir=desc&unique=prints';
+  const url = 'https://api.scryfall.com/cards/search?q=(type:token or type:emblem or type:card) -layout:art_series -is:minigame -set:wc97 -set:wc98 -set:wc99 -set:wc00 -set:wc01 -set:wc02 -set:wc03 -set:wc04&order=released&dir=desc&unique=prints';
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('Error de red');
@@ -546,7 +546,7 @@ async function runSearch(q) {
   statusEl.style.display = 'block';
   statusEl.textContent = 'Buscando...';
 
-  const baseQuery = `(type:token or type:emblem or type:card) ${q}`;
+  const baseQuery = `(type:token or type:emblem or type:card) -layout:art_series -is:minigame -set:wc97 -set:wc98 -set:wc99 -set:wc00 -set:wc01 -set:wc02 -set:wc03 -set:wc04 ${q}`;
   const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(baseQuery)}&unique=prints&order=name`;
   // Consulta aparte para saber cuáles de estos resultados están etiquetados como
   // "reminder card" en Scryfall Tagger (otag:reminder-card). Si falla, seguimos sin ese dato.
